@@ -3,6 +3,7 @@
 # imports
 import socket
 import select
+from seperate_to_words import separates_to_words
 
 
 class Server:
@@ -115,6 +116,8 @@ def main():
                     f.close()
                     open_client_sockets.remove(current_socket)
                     print("Connection with client closed")
+                    separates_to_words()
+                    break
     server_socket.close()
 
 
