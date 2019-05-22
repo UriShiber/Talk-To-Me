@@ -1,0 +1,194 @@
+package com.example.talktome;
+
+
+import android.support.v7.app.AppCompatActivity;
+import android.os.Bundle;
+import android.view.View;
+import android.widget.ImageButton;
+import android.widget.TextView;
+import android.widget.Toast;
+import java.lang.System;
+import java.io.DataOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+
+import java.net.Socket;
+import java.net.UnknownHostException;
+import java.util.Locale;
+
+
+// for recording sound------------------
+import android.os.Environment;
+import android.media.MediaRecorder;
+import android.media.MediaPlayer;
+//--------------------------------------
+
+
+
+
+public class MainActivity extends AppCompatActivity {
+    // for record button --------------------------
+    private boolean isPressed;
+    private MediaRecorder myAudioRecorder;
+    private String outputFile = null;
+    private int counter = 0;
+    private MediaPlayer mediaPlayer;
+    private String result;
+    private boolean flag = true;
+    TextView textView;
+
+    // --------------------------------------------
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        // run ------------------------------------------------------
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_main);
+        // permission -----------------------------------------------
+        Permission p = new Permission(this);
+        p.verifyPermission();
+        //-----------------------------------------------------------
+        // for record button ----------------------------------------
+        ImageButton RecordButtonImage = findViewById(R.id.RecordButtonImage);
+        textView = findViewById(R.id.textView);
+
+        isPressed = false;
+
+        // ----------------------------------------------------------
+        RecordButtonImage.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                // first time we click on the record button - start recording
+                // second time we click on the record button - stop recording, send audio file to
+                // the server and wait for a response
+                // for recording --------------------------------------------
+                myAudioRecorder = new MediaRecorder();
+                myAudioRecorder.setAudioSource(MediaRecorder.AudioSource.MIC);
+                myAudioRecorder.setOutputFormat(MediaRecorder.OutputFormat.DEFAULT);
+                myAudioRecorder.setAudioEncoder(MediaRecorder.OutputFormat.DEFAULT);
+                //-----------------------------------------------------------
+                // for playing ----------------------------------------------
+                mediaPlayer = new MediaPlayer();
+                if (!isPressed) {
+                    counter++;
+                    String fileName = String.format(Locale.ENGLISH, "/AudioRecording%d.3gpp", counter);
+                    File file = new File((Environment.getExternalStorageDirectory().getAbsolutePath()
+                            + fileName));
+                    outputFile = file.getAbsolutePath();
+                    //do recording
+                    try {
+                        myAudioRecorder.setOutputFile(outputFile);
+                        myAudioRecorder.prepare();
+                        myAudioRecorder.start();
+
+                    } catch (IllegalStateException ise) {
+                        ise.printStackTrace();
+                    } catch (IOException ioe) {
+                        ioe.printStackTrace();
+                    }
+                    isPressed = true;
+
+                } else {
+                    try {
+                        myAudioRecorder.stop();
+                        myAudioRecorder.reset();
+                        myAudioRecorder.release();
+                        myAudioRecorder = null;
+                    } catch (IllegalStateException ise) {
+                        ise.printStackTrace();
+                    }
+                    Toast.makeText(MainActivity.this, "Recording Completed",
+                            Toast.LENGTH_LONG).show();
+                    try {
+                        // play the recorded audio -------------------------------------
+                        Toast.makeText(MainActivity.this, "playing...",
+                                Toast.LENGTH_LONG).show();
+                        mediaPlayer.setDataSource(outputFile);
+                        mediaPlayer.prepare();
+                        mediaPlayer.start();
+                    } catch (IOException ex) {
+                        ex.printStackTrace();
+                    }
+                    // -------------------------------------------------------------
+                    isPressed = false;
+                    send(outputFile);
+                    Toast.makeText(MainActivity.this, "after sending...",
+                            Toast.LENGTH_LONG).show();
+                    while (true){
+                        if (!flag){
+                            break;
+                        }
+                    }
+                    textView.setText(result);
+                }
+            }
+
+            private void send(String outputFile) {
+                Toast.makeText(MainActivity.this, "sending...",
+                        Toast.LENGTH_LONG).show();
+
+
+                class myRunnable implements Runnable {
+                    private String outputFile;
+
+                    private myRunnable(String outputFile1){
+                        outputFile = outputFile1;
+                    }
+
+                    public void run() {
+                        try {
+                            System.out.println("in run");
+                            Socket socket = new Socket("10.100.102.17", 80);
+                            InputStream is = socket.getInputStream();
+                            DataOutputStream out = new DataOutputStream(socket.getOutputStream());
+                            FileInputStream fis;
+                            int bytesToRead = 0;
+                            byte[] my_byte_arr;
+                            //-------------------------------
+                            my_byte_arr = new byte[4096];
+                            fis = new FileInputStream(outputFile);
+                            int content;
+                            content = fis.read(my_byte_arr);
+                            while (content != -1) {
+                                for (byte b : my_byte_arr) {
+                                    out.write(b);
+                                }
+                                content = fis.read(my_byte_arr);
+
+                            }
+                            out.writeChars("uri");
+                            out.flush();
+                            byte[] bbb2;
+                            byte[] bbb = new byte[1024];
+                            while (bytesToRead == 0) {
+                                // Read next message.
+                                bytesToRead = is.read(bbb);
+                                bbb2 = new byte[bytesToRead];
+                                System.arraycopy(bbb, 0, bbb2,0, bytesToRead);
+                                result = new String(bbb2);
+                                flag = false;
+                                System.out.println(result);
+                            }
+                            is.close();
+                            out.close();
+                            socket.close();
+                        } catch (UnknownHostException e) {
+                            System.out.println("dont recognize host");
+                            e.printStackTrace();
+                        } catch (IOException e) {
+                            System.out.println("other err");
+                            e.printStackTrace();
+                        }
+                    }
+                }
+                System.out.println("in send");
+                Thread myThread = new Thread(new myRunnable(outputFile));
+                myThread.start();
+            }
+        });
+    }
+}
+
+    
