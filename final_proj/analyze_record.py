@@ -6,7 +6,7 @@ import numpy as np
 import os
 import wave
 import pyaudio
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 from convert_audio_file_to_wave import convert_file_to_wav
 import librosa
 import librosa.display
@@ -74,7 +74,7 @@ def detect_silence(audio_file):
             # calculates the average
             peak = np.average(np.abs(data))
             if not in_a_word:
-                if peak > 400:
+                if peak > 300:
                     in_a_word = True
                     words_time.append(counter)
                     # if this is the second file, i need to open a new one
@@ -96,9 +96,9 @@ def detect_silence(audio_file):
                 # in a word, so write the sound to the new file till you get out
                 # of the word
                 new_wav_file.writeframesraw(data)
-                if peak < 400:
+                if peak < 300:
                     times_under_400 += 1
-                    if times_under_400 >= 175:  # len of silence
+                    if times_under_400 >= 150:  # len of silence
                         in_a_word = False
                         first = False
                         words_time.append(counter)
@@ -108,7 +108,8 @@ def detect_silence(audio_file):
                 else:
                     times_under_400 = 0
             # for debugging - good indicate for the volume
-            bars = "#" * int(1000 * int(peak) / 2 ** 16)
+            # bars = "#" * int(1000 * int(peak) / 2 ** 16)
+            int(peak)
             # print("%04d %05d %s" % (counter, peak, bars))
     except ValueError:
         pass
@@ -116,7 +117,6 @@ def detect_silence(audio_file):
     stream.stop_stream()
     stream.close()
     p.terminate()
-
     return words_time.__len__() / 2, not_a_word
 
 
@@ -228,7 +228,7 @@ def detect_vowel(my_que, new_example_spec, new_mel_spec, new_end_of_shape, new_r
         mel_spec = do_mel_spec(os.path.join(path, "audio_chunk{0}.wav".format(this_num_of_vowel)))
         example_spec[example_spec == 0] = np.min(new_mel_spec)
 
-        start_of_shape, end_of_shape = take_period_of_high_frequency(mel_spec)
+        start_of_shape, end_of_shape = take_period_of_high_frequency_vowel(mel_spec)
         relative_index = start_of_shape + int((end_of_shape - start_of_shape) / 2)
         mel_spec[:, :] += np.min(new_mel_spec) - np.min(mel_spec)
 
@@ -253,7 +253,7 @@ def new_vowel(file_name):
     new_mel_spec = do_mel_spec(new_path)
     new_example_spec[new_example_spec == 0] = np.min(new_mel_spec)
 
-    new_start_shape, new_end_of_shape = take_period_of_high_frequency(new_mel_spec)
+    new_start_shape, new_end_of_shape = take_period_of_high_frequency_vowel(new_mel_spec)
     new_relative_index = new_start_shape + int((new_end_of_shape - new_start_shape) / 2)
 
     new_example_spec[:, new_relative_index:new_end_of_shape - 20] = \
@@ -272,28 +272,27 @@ def new_letter(file_name):
     new_mel_spec = do_mel_spec(new_path)
     new_example_spec[new_example_spec == 0] = np.min(new_mel_spec)
 
-    new_start_shape, new_end_of_shape = take_period_of_high_frequency(new_mel_spec)
+    new_start_shape, new_end_of_shape = take_period_of_high_frequency_letter(new_mel_spec)
     new_relative_index = new_start_shape + int((new_end_of_shape - new_start_shape) / 2)
     # print("new_start_shape:", new_start_shape)
-    if new_start_shape >= 50:
-        new_example_spec[:, new_start_shape - 50:new_start_shape + 100] = \
-            new_mel_spec[:, new_start_shape - 50:new_start_shape + 100]
-    else:
-        # there are 2 options:
-        # 1) keep the same number of samples (100) each time
-        # 2) check until start_of_shape + 50 even if it means different num of samples
-        new_example_spec[:, :150] = new_mel_spec[:, :150]
+    # if new_start_shape >= 50:
+    new_example_spec[:, :new_start_shape + 10] = new_mel_spec[:, :new_start_shape + 10]
+    # else:
+    # there are 2 options:
+    # 1) keep the same number of samples (100) each time
+    # 2) check until start_of_shape + 50 even if it means different num of samples
+    # new_example_spec[:, :150] = new_mel_spec[:, :150]
+    # print(new_start_shape)
     return new_example_spec, new_mel_spec, new_end_of_shape, new_relative_index
 
 
-def detect_letter(my_que, new_example_spec, new_mel_spec, new_end_of_shape, new_relative_index, this_num_of_vowel):
+def detect_letter(my_que, new_example_spec, new_mel_spec, this_num_of_vowel):
     """
     at this moment i don't use new_end_of_shape and new_relative_index but i pass them anyway
+    can use also new_end_of_shape or new_relative_index but dosent for now
     :param my_que:
     :param new_example_spec:
     :param new_mel_spec:
-    :param new_end_of_shape:
-    :param new_relative_index:
     :param this_num_of_vowel:
     :return:
     """
@@ -306,25 +305,62 @@ def detect_letter(my_que, new_example_spec, new_mel_spec, new_end_of_shape, new_
         mel_spec = do_mel_spec(os.path.join(path, "audio_chunk{0}.wav".format(this_num_of_vowel)))
         example_spec = np.zeros((80, 1200))
         example_spec[example_spec == 0] = np.min(new_mel_spec)
-        start_of_shape, end_of_shape = take_period_of_high_frequency(mel_spec)
-        relative_index = start_of_shape + int((end_of_shape - start_of_shape) / 2)
+        start_of_shape, end_of_shape = take_period_of_high_frequency_letter(mel_spec)
+        # relative_index = start_of_shape + int((end_of_shape - start_of_shape) / 2)
         mel_spec[:, :] += np.min(new_mel_spec) - np.min(mel_spec)
-        if start_of_shape >= 50:
-            example_spec[:, start_of_shape - 50:start_of_shape + 100] = \
-                mel_spec[:, start_of_shape - 50:start_of_shape + 100]
-        else:
-            # there are 2 options:
-            # 1) keep the same number of samples (100) each time
-            # 2) check until start_of_shape + 50 even if it means different num of samples
-            example_spec[:, :150] = mel_spec[:, :150]
+        # if start_of_shape >= 50:
+        example_spec[:, :start_of_shape + 10] = mel_spec[:, :start_of_shape + 10]
+        # else:
+        # there are 2 options:
+        # 1) keep the same number of samples (100) each time
+        # 2) check until start_of_shape + 50 even if it means different num of samples
+        # example_spec[:, :100] = mel_spec[:, :100]
         # print(np.min(example_spec))
         distance = compare_power(new_example_spec, example_spec)
+        print(this_num_of_vowel, num_of_folders, distance)
         sum_distance += distance
         num_of_folders += 1
     my_que.put(sum_distance)
 
 
-def take_period_of_high_frequency(mel_spec):
+def take_period_of_high_frequency_letter(mel_spec):
+    """
+        :param mel_spec:[0] represents the rows
+                        [1] represents the columns
+        :return:
+        """
+    x = np.min(mel_spec)
+    i = 0
+    j = 0
+    firsts = []
+    not_first = False
+    lasts = [np.shape(mel_spec)[1]]
+    time_above_frequency = 0
+    while i < np.shape(mel_spec)[1]:
+        while j < np.shape(mel_spec)[0]:
+            if mel_spec[j, i] > x + 40:
+                time_above_frequency += 1
+            if time_above_frequency > 10:
+                j = np.shape(mel_spec)[0]
+            j += 1
+        if not_first:
+            if time_above_frequency < 10:
+                lasts.append(i)
+                not_first = False
+        if not not_first:
+            if time_above_frequency > 10:
+                firsts.append(i)
+                not_first = True
+        j = 0
+        i += 1
+        time_above_frequency = 0
+    # print(firsts[0], lasts[-1])
+    if not firsts:
+        firsts.append(0)
+    return firsts[0], lasts[-1]
+
+
+def take_period_of_high_frequency_vowel(mel_spec):
     """
     i changed 5 times instead of 10
     :param mel_spec:[0] represents the rows
@@ -418,7 +454,7 @@ def create_threads_for_letters(num_of_values, file):
     creates threads (no more than 8, computer's ability)
     """
     letters = ['א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ז', 'ח', 'ט', 'י', 'כ', 'ל', 'מ', 'נ', 'ס', 'ע', 'פ', 'צ', 'ק', 'ר', 'ש',
-               'ת']
+               'ת', 'פ']
     total_distances = []
     new_example_spec, new_mel_spec, new_end_of_shape, new_relative_index = new_letter(file)
     my_que = queue.Queue()
@@ -428,20 +464,16 @@ def create_threads_for_letters(num_of_values, file):
             # print(this_num_of_values)
             this_num_of_values += 1
             th = threading.Thread(target=detect_letter, args=(my_que, new_example_spec, new_mel_spec,
-                                                              new_end_of_shape, new_relative_index,
                                                               this_num_of_values))
             th.start()
-            this_num_of_values += 1
-            if this_num_of_values > num_of_values:
+            if this_num_of_values >= num_of_values:
                 break
-            th2 = threading.Thread(target=detect_letter, args=(my_que, new_example_spec, new_mel_spec,
-                                                               new_end_of_shape, new_relative_index,
-                                                               this_num_of_values))
-            th2.start()
-
         result = my_que.get()
         total_distances.append(result)
-    print(total_distances)
+    result = my_que.get()
+    total_distances.append(result)
+    for i in range(total_distances.__len__()):
+        print(i + 1, total_distances[i])
     return letters[total_distances.index(min(total_distances))]
 
 
@@ -463,24 +495,31 @@ def main_analyzer():
     # audio_file = convert_file_to_wav(os.path.join(FILES_TO_CONVERT_DIR, "ר5.m4a"))
     # audio_file = convert_file_to_wav(os.path.join(FILES_TO_CONVERT_DIR, "my_record1"))
     # --------------------------------------------------------------------------
+    i = 1
+    for file in os.listdir(AUDIO_CHUNKS_DIR):
+        if os.path.isfile(os.path.join(AUDIO_CHUNKS_DIR, file)):
+            i += 1
+
     # separating the audio into words ------------------------------------------
     # num_of_chunks, not_a_word = detect_silence(audio_file)
     # num_of_vowels = remove_record_garbage(not_a_word, num_of_chunks)
     # detecting the letter and the vowel ---------------------------------------
     # --------------------------------------------------------------------------
     return_string = ""
+    # num_of_vowels += i - 1
     i = 1
     num_of_vowels = 1
+    print("num_of_vowels:", num_of_vowels)
     while i <= num_of_vowels:
         # file = os.path.join(AUDIO_CHUNKS_DIR, "audio_chunk{0}.wav".format(i))
-        file = os.path.join(r"C:\Users\Noa\Desktop\uri- final project\Recordings\sounds of b", "ba.wav")
+        file = os.path.join(r"C:\Users\Noa\Desktop\uri- final project\Recordings\audio_chunks\repair2\ף", "audio_chunk20.wav")
         return_string += create_threads_for_letters(23, file)
         vowel = create_threads_for_vowels(6, file)
         return_string += prepare_return_vowel(vowel, return_string, True)
         i += 1
-    print(return_string)
     # --------------------------------------------------------------------------
-    # return return_string
+    print(return_string)
+    return return_string
     # file = os.path.join(r"C:\Users\Noa\Desktop\uri- final project\Recordings\sounds of b", "b.wav")
     # do_mel_spec(file)
     # vowel = create_threads_for_vowels(5, file)
