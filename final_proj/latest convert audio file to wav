@@ -1,0 +1,61 @@
+"""
+needs to be in the folder of ffmpeg\bin
+"""
+
+from pydub import AudioSegment
+import os
+import wave
+
+RECORDING_DIR = r"C:\Users\Noa\Desktop\uri- final project\Recordings"
+FILES_TO_CONVERT_DIR = r"C:\Users\Noa\Desktop\uri- final project\Files to convert"
+EXAMPLE_FILE = r"C:\Users\Noa\Desktop\uri- final project\Recordings\record_try_1.wav"
+
+
+def convert_file_to_wav(file_name):
+    """
+    is called from the main_analyzer
+    converts the file from an unknown format to wav format using the
+    AudioSegment library by pydub
+    :param file_name: the file that needs to be converted
+    :return: the new file's path
+    """
+    # example file that has agreed characteristics to create
+    #  same characteristics for all files
+    wave_file = wave.open(EXAMPLE_FILE, 'rb')
+
+    # in order to avoid running over old files
+    counter = number_of_files_in_dir(RECORDING_DIR)
+
+    # getting the audio segment of a file
+    audio_signal_segment = AudioSegment.from_file(file_name)
+
+    # creating new file int the wav format
+    audio_file = os.path.join(RECORDING_DIR, "record_try_{0}.wav".
+                              format(counter))
+
+    # set the new file characteristics to be as the example file
+    audio_signal_segment = audio_signal_segment.set_channels(wave_file.
+                                                             getnchannels())
+    audio_signal_segment = audio_signal_segment.set_frame_rate(wave_file.
+                                                               getframerate())
+    audio_signal_segment = audio_signal_segment.set_sample_width(wave_file.
+                                                                 getsampwidth())
+
+    # exporting the finished audio file in wav format
+    audio_signal_segment.export(audio_file, format='wav')
+
+    # return to the main_analyzer the path of the new wav file
+    return audio_file
+
+
+def number_of_files_in_dir(folder):
+    """
+    in order to avoid running over old files, calculates their number and then
+    return the first serial number that is open for the next file
+    :return: counter- the number of files in the dir + 1
+    """
+    counter = 2
+    for file in os.listdir(folder):
+        if os.path.isfile(os.path.join(folder, file)):
+            counter += 1
+    return counter
